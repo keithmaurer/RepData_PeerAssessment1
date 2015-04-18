@@ -1,0 +1,208 @@
+---
+title: "Reproducible Research Project 1"
+author: "Keith Maurer"
+output: html_document
+---
+###Loading and preprocessing the data. 
+
+First check if data file exists. If not, download and unzip the data.
+```{r}
+if(!file.exists("activity.csv")){
+  download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip",destfile="repdata_data_activity.zip")
+	##Unzip the data file in the working diretory.
+	unzip("repdata_data_activity.zip")
+}
+```
+Load data into R and specify date column as date rather then text.
+```{r}
+alldata <- read.csv("activity.csv")
+alldata$date<-as.Date(alldata$date, "%Y-%m-%d")
+```
+
+###Part 1: Mean & total number of steps taken per day.
+For this part of the assignment, you can ignore the missing values in the data set.
+
+**Calculate the total number of steps taken per day**  
+Use the Aggregate function to 'sum' all 'steps' taken by 'date'. Save summarized data as "StepsPerDay" for further analysis below.
+Change column names to reflect summarized data.
+Show first 25 results to confirm.
+```{r}
+StepsPerDay<-aggregate(steps ~ date, data=alldata, FUN=sum)
+names(StepsPerDay)=c("date","TotalDailySteps")
+head(StepsPerDay,25)
+```
+
+**Make a histogram of the total number of steps taken each day**  
+Use the histogram function in the base plotting package to plot "TotalDailySteps".
+```{r}
+hist(StepsPerDay$TotalDailySteps,xlab="Steps Per Day",ylab="Frequency",main="Steps Per Day")
+```   
+
+This shows a somewhat normal distribution, with 10,000 to 15,000 steps per day at the peak.  
+
+**Calculate and report the mean and median of the total number of steps taken per day**
+```{r}
+mean(StepsPerDay$TotalDailySteps, na.rm=TRUE)
+median(StepsPerDay$TotalDailySteps, na.rm=TRUE)
+```
+
+###Part 2: Daily average activity patterns.
+
+**Make a time series plot of the 5-minute interval and the average number of steps taken, averaged across all days.**  
+I used the Aggregate function again, this time looking at the 'mean' of all 'steps' within each 'interval'. 
+Change column name to reflect summarized data.
+Show the first 25 results to confirm.
+```{r}
+StepsPerIntv<-aggregate(steps ~ interval, data=alldata, FUN=mean)
+names(StepsPerIntv)=c("interval","AvgSteps")
+head(StepsPerIntv,25)
+```
+Create line plot, with intervals along the x-axis, and average steps in the y-direction.
+```{r}
+plot(StepsPerIntv$interval,StepsPerIntv$AvgSteps, type="l",xlab="5 min time interval",ylab="Steps",main="Average Steps Throuought the Day")
+```
+
+**Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?**  
+Find which row (interval) equals the maximum number of steps.
+```{r}
+StepsPerIntv[which(StepsPerIntv$AvgSteps==max(StepsPerIntv$AvgSteps)),]
+```
+Here we see 835 is the greatest interval, averaging 206 steps per day. 
+
+###Part 3: Imputing missing values.  
+Note that there are a number of days/intervals where there are missing values (coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data.
+
+**Calculate and report the total number of missing values in the dataset.**  
+Use 'is.na' on the 'steps' field to test each individual observation. This returns a T/F vector with the same length as the data. Using 'sum' will count TRUE=1, and FALSE=0. The sum will be the true observations, or number of NAs in the table.  
+```{r}
+sum(is.na(alldata$steps))
+```
+
+**Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.**  
+I'm going to replace the NA'a with the average for that time interval.  
+I created a new Data Frame called "Replace" that will hold data to replace the NA values.  
+'r' is set to 1 to build the first row of the Replace table.  
+-The loop goes through all rows in the original data table, and identifies rows that have "NA".  
+-The interval is found in row three, and is added to first column of the "Replacement" the table.  
+-Next, look up this 'int' value in the 'StepsPerIntv' table (made previously). There will only be one row where this is true.  
+-The average is in the second column, so pull data the second column for that interval and add data to the second column of the "Replacement" table.  
+-Add 1 to 'r' so the second row can be populated on the next loop, and so on.
+```{r}
+Replace<-data.frame()
+r<-1
+for(i in 1:17568){
+  if(is.na(alldata[i,1])){
+  int<-alldata[i,3]
+  Replace[r,1]<-int
+  Replace[r,2]<-StepsPerIntv[which(StepsPerIntv$interval==int),2]
+  r<-r+1
+	}
+}
+```
+This creates a long list with many duplicates. Remove any repeating values, and add appropriate column names. Print the first 25 rows of the output as a sample.
+```{r}
+Replace<-unique(Replace)
+names(Replace)<-c("interval","replacement")
+head(Replace,25)
+```
+This 'Replacement' table represents all NA intervals and their appropriate replacements.
+
+**Create a new dataset that is equal to the original dataset but with the missing data filled in.**  
+I'm going to replace each of the NA's with the average for that time interval.  
+-Copy the original data to a new Data Frame for updating, while preserving the original for comparison later on.
+-Run a for loop that covers all the observations. Use a 'is.na' command to work on the NA values, while leaving the rest alone.  
+-If a row has a 'NA', look to the third row to find the time interval.  
+-Next, look up this 'int' value in the 'Replace' table (made previously). There will only be one row where this is true.  
+-The replacement value is in the second column, so pull data from the second column, and enter it in the first column of alldata2.
+```{r}
+alldata2<-alldata
+for(i in 1:17568){
+  if(is.na(alldata2[i,1])){
+  int<-alldata2[i,3]
+  alldata2[i,1]<-Replace[which(Replace$interval==int),2]
+	}
+}
+``` 
+To check, run 'any is.na' to see if any NA's remain in the data set.
+```{r}
+any(is.na(alldata2))  
+```
+
+**Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?**  
+In order to compare "steps per day" before and after NA's removed, we need "steps per day with NA removed". Make StepsPerDay2 from alldata2. Change name to reflect new data.
+```{r}
+StepsPerDay2<-aggregate(steps ~ date, data=alldata2, FUN=sum)
+names(StepsPerDay2)=c("date","TotalDailySteps")
+```
+
+```{r}
+par(mfrow=c(1,2))
+hist(StepsPerDay$TotalDailySteps,
+xlab="Steps",
+ylab="Frequency",
+main="Origional Data")
+
+hist(StepsPerDay2$TotalDailySteps,
+xlab="Steps",
+ylab="",
+main="NA Values Replaced")
+```  
+
+There are is a slightly greater concentration of steps near the mean, so variability has decreased. 
+```{r}
+sd(StepsPerDay2$TotalDailySteps) / sd(StepsPerDay$TotalDailySteps, na.rm=TRUE)
+```  
+
+The standard deviation has come down about 7%.
+```{r}
+mean(StepsPerDay$TotalDailySteps, na.rm=TRUE)-mean(StepsPerDay2$TotalDailySteps)
+```
+The mean did not change by adding the missing values. 
+```{r}
+median(StepsPerDay$TotalDailySteps, na.rm=TRUE)-median(StepsPerDay2$TotalDailySteps)
+```  
+The median is slightly lower by just 1 step per day.  
+
+###Part 4: Differences between weekdays and weekends.  
+
+For this part the weekdays() function may be of some help here. Use the data set with the filled-in missing values for this part.
+
+**Create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.**  
+This loop goes through the updated "alldata2" which has the NAs removed. It adds a forth column for weekday, then turns "Saturday" and "Sunday" into "Weekend", and turns the rest to "Weekdays".  
+
+```{r}
+for(i in 1:17568){
+  alldata2[i,4]<-weekdays(alldata2[i,2])
+  if(alldata2[i,4]=="Saturday" | alldata2[i,4]=="Sunday"){
+	alldata2[i,4]<-"Weekend"
+	}
+	else{
+	alldata2[i,4]<-"Weekday"
+	}
+}
+```
+Name the new, fourth column.
+```{r}
+names(alldata2)=c("steps","date","interval","DayType")
+```
+Identify "Daytype" as a two level factor, and not just plain text.
+```{r}
+alldata2$DayType<-factor(alldata2$DayType)
+```
+
+**Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).**  
+
+Find "StepsPerIntv2" from "alldata2", which will have the NAs removed.  
+```{r}
+StepsPerIntv2<-aggregate(steps ~ interval + DayType, data=alldata2, FUN=mean)
+```
+Load in the ggplot package, add lines geom, and plot. 
+```{r}
+library(ggplot2)
+plot<-ggplot(StepsPerIntv2, aes(interval,steps))
+plot<-plot + geom_line()
+plot<-plot + facet_grid(DayType~.)
+print(plot)
+```  
+
+We see a lower maximum on the weekend days. We also notice a general shift in the weekend data. I expect there is some sleeping in and staying out later on weekend days.
