@@ -1,4 +1,4 @@
-###Please see "FinishedReport.HTML" for project results.
+###Please see "FinishedReport.Rmd" for project results.
 
 ## Introduction
 
